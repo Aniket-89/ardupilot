@@ -62,7 +62,9 @@ public:
     friend class ModeQAutotune;
     friend class ModeQAcro;
     friend class ModeLoiterAltQLand;
-    
+    friend class ModeAutoLand;
+    friend class AP_SystemID;
+
     QuadPlane(AP_AHRS &_ahrs);
 
     static QuadPlane *get_singleton() {
@@ -190,6 +192,8 @@ public:
 
     // Get pilot throttle input with deadzone, this will return 50% throttle in failsafe!
     float get_throttle_input() const;
+
+    void Log_Write_AttRate();
 
 private:
     AP_AHRS &ahrs;
@@ -443,13 +447,13 @@ private:
     Transition *transition = nullptr;
 
     // true when waiting for pilot throttle
-    bool throttle_wait:1;
+    bool throttle_wait;
 
     // true when quad is assisting a fixed wing mode
-    bool assisted_flight:1;
+    bool assisted_flight;
 
     // are we in a guided takeoff?
-    bool guided_takeoff:1;
+    bool guided_takeoff;
 
     /* if we arm in guided mode when we arm then go into a "waiting
        for takeoff command" state. In this state we are waiting for
@@ -547,8 +551,8 @@ private:
         uint8_t motor_count;          // number of motors to cycle
     } motor_test;
 
-    // time of last control log message
-    uint32_t last_ctrl_log_ms;
+    // time of last MOTB log message
+    uint32_t last_motb_log_ms;
 
     // time of last QTUN log message
     uint32_t last_qtun_log_ms;
@@ -630,6 +634,12 @@ private:
     // oneshot with duration ARMING_DELAY_MS used by quadplane to delay spoolup after arming:
     // ignored unless OPTION_DELAY_ARMING or OPTION_TILT_DISARMED is set
     bool delay_arming;
+
+    // should we force use of fixed wing controller for attitude upset recovery?
+    bool force_fw_control_recovery;
+
+    // are we in spin recovery?
+    bool in_spin_recovery;
 
     /*
       return true if current mission item is a vtol takeoff

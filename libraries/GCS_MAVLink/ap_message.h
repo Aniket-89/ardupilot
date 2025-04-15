@@ -9,6 +9,7 @@
 #include "GCS_config.h"
 
 #include <AP_AHRS/AP_AHRS_config.h>
+#include <AP_Terrain/AP_Terrain_config.h>
 
 enum ap_message : uint8_t {
     MSG_HEARTBEAT,
@@ -52,7 +53,10 @@ enum ap_message : uint8_t {
     MSG_WIND,
     MSG_RANGEFINDER,
     MSG_DISTANCE_SENSOR,
-    MSG_TERRAIN,
+#if AP_TERRAIN_AVAILABLE
+    MSG_TERRAIN_REQUEST,
+    MSG_TERRAIN_REPORT,
+#endif  // AP_TERRAIN_AVAILABLE
     MSG_BATTERY2,
     MSG_CAMERA_FEEDBACK,
     MSG_CAMERA_INFORMATION,
@@ -63,6 +67,7 @@ enum ap_message : uint8_t {
     MSG_GIMBAL_DEVICE_ATTITUDE_STATUS,
     MSG_GIMBAL_MANAGER_INFORMATION,
     MSG_GIMBAL_MANAGER_STATUS,
+    MSG_VIDEO_STREAM_INFORMATION,
     MSG_OPTICAL_FLOW,
     MSG_MAG_CAL_PROGRESS,
     MSG_MAG_CAL_REPORT,
@@ -101,5 +106,10 @@ enum ap_message : uint8_t {
     MSG_HIGHRES_IMU,
 #endif
     MSG_AIRSPEED,
+    MSG_AVAILABLE_MODES,
+    MSG_AVAILABLE_MODES_MONITOR,
+#if AP_MAVLINK_MSG_FLIGHT_INFORMATION_ENABLED
+    MSG_FLIGHT_INFORMATION,
+#endif
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };

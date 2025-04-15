@@ -16,6 +16,7 @@ void Plane::init_ardupilot()
     pitchController.convert_pid();
 
     // initialise rc channels including setting mode
+    // CONVERSION: Added for upgrade to ArduPlane 4.2, Sep 2021
 #if HAL_QUADPLANE_ENABLED
     rc().convert_options(RC_Channel::AUX_FUNC::ARMDISARM_UNUSED, (quadplane.enabled() && quadplane.option_is_set(QuadPlane::OPTION::AIRMODE_UNUSED) && (rc().find_channel_for_option(RC_Channel::AUX_FUNC::AIRMODE) == nullptr)) ? RC_Channel::AUX_FUNC::ARMDISARM_AIRMODE : RC_Channel::AUX_FUNC::ARMDISARM);
 #else
@@ -127,6 +128,9 @@ void Plane::init_ardupilot()
 
     // initialise mission library
     mission.init();
+#if HAL_LOGGING_ENABLED
+    mission.set_log_start_mission_item_bit(MASK_LOG_CMD);
+#endif
 
     // initialise AP_Logger library
 #if HAL_LOGGING_ENABLED
@@ -137,7 +141,7 @@ void Plane::init_ardupilot()
 
     // reset last heartbeat time, so we don't trigger failsafe on slow
     // startup
-    gcs().sysid_myggcs_seen(AP_HAL::millis());
+    gcs().sysid_mygcs_seen(AP_HAL::millis());
 
     // don't initialise aux rc output until after quadplane is setup as
     // that can change initial values of channels
@@ -348,7 +352,7 @@ bool Plane::set_mode_by_number(const Mode::Number new_mode_number, const ModeRea
 
 void Plane::check_long_failsafe()
 {
-    const uint32_t gcs_last_seen_ms = gcs().sysid_myggcs_last_seen_time_ms();
+    const uint32_t gcs_last_seen_ms = gcs().sysid_mygcs_last_seen_time_ms();
     const uint32_t tnow = millis();
     // only act on changes
     // -------------------

@@ -174,6 +174,11 @@ bool AP_ExternalAHRS::get_origin(Location &loc)
 {
     if (state.have_origin) {
         WITH_SEMAPHORE(state.sem);
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        if (!state.origin.initialised()) {
+            AP_HAL::panic("Uninitialized origin in AP_ExternalAHRS.");
+        }
+#endif
         loc = state.origin;
         return true;
     }
@@ -198,6 +203,11 @@ bool AP_ExternalAHRS::get_location(Location &loc)
     }
     WITH_SEMAPHORE(state.sem);
     loc = state.location;
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if (!loc.initialised()) {
+        AP_HAL::panic("Uninitialized location in AP_ExternalAHRS.");
+    }
+#endif
 
     if (state.last_location_update_us != 0 &&
         state.have_velocity) {
@@ -289,6 +299,17 @@ void AP_ExternalAHRS::get_filter_status(nav_filter_status &status) const
     }
 }
 
+/*
+  get estimated variances, return false if not implemented
+ */
+bool AP_ExternalAHRS::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
+{
+    if (backend != nullptr) {
+        return backend->get_variances(velVar, posVar, hgtVar, magVar, tasVar);
+    }
+    return false;
+}
+
 bool AP_ExternalAHRS::get_gyro(Vector3f &gyro)
 {
     WITH_SEMAPHORE(state.sem);
@@ -312,9 +333,56 @@ bool AP_ExternalAHRS::get_accel(Vector3f &accel)
 // send an EKF_STATUS message to GCS
 void AP_ExternalAHRS::send_status_report(GCS_MAVLINK &link) const
 {
-    if (backend) {
-        backend->send_status_report(link);
+    float velVar, posVar, hgtVar, tasVar;
+    Vector3f magVar;
+    if (backend == nullptr || !backend->get_variances(velVar, posVar, hgtVar, magVar, tasVar)) {
+        return;
     }
+
+    uint16_t flags = 0;
+    nav_filter_status filterStatus {};
+    get_filter_status(filterStatus);
+
+    if (filterStatus.flags.attitude) {
+        flags |= EKF_ATTITUDE;
+    }
+    if (filterStatus.flags.horiz_vel) {
+        flags |= EKF_VELOCITY_HORIZ;
+    }
+    if (filterStatus.flags.vert_vel) {
+        flags |= EKF_VELOCITY_VERT;
+    }
+    if (filterStatus.flags.horiz_pos_rel) {
+        flags |= EKF_POS_HORIZ_REL;
+    }
+    if (filterStatus.flags.horiz_pos_abs) {
+        flags |= EKF_POS_HORIZ_ABS;
+    }
+    if (filterStatus.flags.vert_pos) {
+        flags |= EKF_POS_VERT_ABS;
+    }
+    if (filterStatus.flags.terrain_alt) {
+        flags |= EKF_POS_VERT_AGL;
+    }
+    if (filterStatus.flags.const_pos_mode) {
+        flags |= EKF_CONST_POS_MODE;
+    }
+    if (filterStatus.flags.pred_horiz_pos_rel) {
+        flags |= EKF_PRED_POS_HORIZ_REL;
+    }
+    if (filterStatus.flags.pred_horiz_pos_abs) {
+        flags |= EKF_PRED_POS_HORIZ_ABS;
+    }
+    if (!filterStatus.flags.initalized) {
+        flags |= EKF_UNINITIALIZED;
+    }
+
+    const float mag_var = MAX(magVar.x, MAX(magVar.y, magVar.z));
+    mavlink_msg_ekf_status_report_send(link.get_chan(), flags,
+                                       velVar,
+                                       posVar,
+                                       hgtVar,
+                                       mag_var, 0, 0);
 }
 
 void AP_ExternalAHRS::update(void)
@@ -357,6 +425,28 @@ void AP_ExternalAHRS::update(void)
                                     state.velocity.x, state.velocity.y, state.velocity.z,
                                     state.location.lat, state.location.lng, state.location.alt*0.01,
                                     filterStatus.value);
+
+        // @LoggerMessage: EAHV
+        // @Description: External AHRS variances
+        // @Field: TimeUS: Time since system startup
+        // @Field: Vel: velocity variance
+        // @Field: Pos: position variance
+        // @Field: Hgt: height variance
+        // @Field: MagX: magnetic variance, X
+        // @Field: MagY: magnetic variance, Y
+        // @Field: MagZ: magnetic variance, Z
+        // @Field: TAS: true airspeed variance
+
+        float velVar, posVar, hgtVar, tasVar;
+        Vector3f magVar;
+        if (backend != nullptr && backend->get_variances(velVar, posVar, hgtVar, magVar, tasVar)) {
+            AP::logger().WriteStreaming("EAHV", "TimeUS,Vel,Pos,Hgt,MagX,MagY,MagZ,TAS",
+                                        "Qfffffff",
+                                        AP_HAL::micros64(),
+                                        velVar, posVar, hgtVar,
+                                        magVar.x, magVar.y, magVar.z,
+                                        tasVar);
+        }
     }
 #endif  // HAL_LOGGING_ENABLED
 }

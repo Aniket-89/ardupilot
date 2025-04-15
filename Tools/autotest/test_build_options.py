@@ -18,8 +18,6 @@ grep 'sabling.*saves' /tmp/tbo-out
 AP_FLAKE8_CLEAN
 """
 
-from __future__ import print_function
-
 import fnmatch
 import optparse
 import os
@@ -197,14 +195,18 @@ class TestBuildOptions(object):
         # should say so:
         for target in self.build_targets:
             path = self.target_to_elf_path(target)
-            extracter = extract_features.ExtractFeatures(path)
-            (compiled_in_feature_defines, not_compiled_in_feature_defines) = extracter.extract()
+            extractor = extract_features.ExtractFeatures(path)
+            (compiled_in_feature_defines, not_compiled_in_feature_defines) = extractor.extract()
             for define in defines:
                 # the following defines are known not to work on some
                 # or all vehicles:
                 feature_define_whitelist = set([
                     'AP_RANGEFINDER_ENABLED',  # only at vehicle level ATM
                     'HAL_PERIPH_SUPPORT_LONG_CAN_PRINTF',  # no symbol
+                    'AP_PROXIMITY_HEXSOONRADAR_ENABLED',  # this shares symbols with AP_PROXIMITY_MR72_ENABLED
+                    'AP_PROXIMITY_MR72_ENABLED',    # this shares symbols with AP_PROXIMITY_HEXSOONRADAR_ENABLED
+                    'AP_RANGEFINDER_NRA24_CAN_ENABLED',
+                    'AP_RANGEFINDER_HEXSOONRADAR_ENABLED',
                 ])
                 if define in compiled_in_feature_defines:
                     error = f"feature gated by {define} still compiled into ({target}); extract_features.py bug?"
@@ -258,7 +260,6 @@ class TestBuildOptions(object):
             'AP_COMPASS_MAG3110_ENABLED',  # must be in hwdef, not probed
             'AP_COMPASS_MMC5XX3_ENABLED',  # must be in hwdef, not probed
             'AP_MAVLINK_AUTOPILOT_VERSION_REQUEST_ENABLED',  # completely elided
-            'AP_MAVLINK_MSG_HIL_GPS_ENABLED',  # no symbol available
             'AP_MAVLINK_MSG_RELAY_STATUS_ENABLED',  # no symbol available
             'AP_MAVLINK_MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES_ENABLED',  # no symbol available
             'HAL_MSP_SENSORS_ENABLED',  # no symbol available
@@ -269,6 +270,9 @@ class TestBuildOptions(object):
             'AP_OPTICALFLOW_ONBOARD_ENABLED',  # only instantiated on Linux
             'HAL_WITH_FRSKY_TELEM_BIDIRECTIONAL',  # entirely elided if no user
             'AP_PLANE_BLACKBOX_LOGGING',  # entirely elided if no user
+            'AP_COMPASS_AK8963_ENABLED',  # probed on a board-by-board basis, not on CubeOrange for example
+            'AP_COMPASS_LSM303D_ENABLED',  # probed on a board-by-board basis, not on CubeOrange for example
+            'AP_BARO_THST_COMP_ENABLED',  # compiler is optimising this symbol away
         ])
         if target.lower() != "copter":
             feature_define_whitelist.add('MODE_ZIGZAG_ENABLED')
@@ -287,6 +291,17 @@ class TestBuildOptions(object):
             feature_define_whitelist.add('AP_WINCH_DAIWA_ENABLED')
             feature_define_whitelist.add('AP_WINCH_PWM_ENABLED')
             feature_define_whitelist.add(r'AP_MOTORS_FRAME_.*_ENABLED')
+            feature_define_whitelist.add('AP_COPTER_ADVANCED_FAILSAFE_ENABLED')
+            feature_define_whitelist.add('AP_INERTIALSENSOR_FAST_SAMPLE_WINDOW_ENABLED')
+            feature_define_whitelist.add('AP_COPTER_AHRS_AUTO_TRIM_ENABLED')
+
+        if target.lower() in ['antennatracker', 'blimp', 'sub', 'plane', 'copter']:
+            # plane has a dependency for AP_Follow which is not
+            # declared in build_options.py; we don't compile follow
+            # support for Follow into Plane unless scripting is also
+            # enabled.  Copter manages to elide everything is
+            # MODE_FOLLOW isn't enabled.
+            feature_define_whitelist.add('AP_FOLLOW_ENABLED')
 
         if target.lower() != "plane":
             # only on Plane:
@@ -302,6 +317,10 @@ class TestBuildOptions(object):
             feature_define_whitelist.add('AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED')
             feature_define_whitelist.add('HAL_QUADPLANE_ENABLED')
             feature_define_whitelist.add('AP_BATTERY_WATT_MAX_ENABLED')
+            feature_define_whitelist.add('MODE_AUTOLAND_ENABLED')
+            feature_define_whitelist.add('AP_PLANE_GLIDER_PULLUP_ENABLED')
+            feature_define_whitelist.add('AP_QUICKTUNE_ENABLED')
+            feature_define_whitelist.add('AP_PLANE_SYSTEMID_ENABLED')
 
         if target.lower() not in ["plane", "copter"]:
             feature_define_whitelist.add('HAL_ADSB_ENABLED')
@@ -383,8 +402,8 @@ class TestBuildOptions(object):
         # should say so:
         for target in self.build_targets:
             path = self.target_to_elf_path(target)
-            extracter = extract_features.ExtractFeatures(path)
-            (compiled_in_feature_defines, not_compiled_in_feature_defines) = extracter.extract()
+            extractor = extract_features.ExtractFeatures(path)
+            (compiled_in_feature_defines, not_compiled_in_feature_defines) = extractor.extract()
             for define in defines:
                 if not defines[define]:
                     continue

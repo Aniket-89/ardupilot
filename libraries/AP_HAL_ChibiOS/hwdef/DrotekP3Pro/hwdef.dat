@@ -6,8 +6,8 @@ define BOARD_TYPE_DEFAULT 14
 # MCU class and specific type
 MCU STM32F4xx STM32F469xx
 
-# board ID for firmware load
-APJ_BOARD_ID 13
+# board ID. See Tools/AP_Bootloader/board_types.txt
+APJ_BOARD_ID TARGET_HW_PX4_PIO_V3
 
 # crystal frequency
 OSCILLATOR_HZ 24000000
@@ -19,7 +19,6 @@ STM32_ST_USE_TIMER 5
 # flash size
 FLASH_SIZE_KB 2048
 
-env OPTIMIZE -O2
 
 # serial port for stdout, disabled so console is on USB
 #STDOUT_SERIAL SD7

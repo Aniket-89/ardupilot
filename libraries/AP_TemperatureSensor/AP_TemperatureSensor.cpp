@@ -33,6 +33,7 @@
 #include "AP_TemperatureSensor_Analog.h"
 #include "AP_TemperatureSensor_DroneCAN.h"
 #include "AP_TemperatureSensor_MLX90614.h"
+#include "AP_TemperatureSensor_SHT3x.h"
 
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
@@ -139,7 +140,7 @@ const AP_Param::GroupInfo AP_TemperatureSensor::var_info[] = {
 
     // @Group: 9_
     // @Path: AP_TemperatureSensor_Analog.cpp
-    AP_SUBGROUPVARPTR(drivers[8], "9_", 26, AP_TemperatureSensor, backend_var_info[8]),
+    AP_SUBGROUPVARPTR(drivers[8], "9_", 27, AP_TemperatureSensor, backend_var_info[8]),
 #endif
 
     AP_GROUPEND
@@ -192,6 +193,11 @@ void AP_TemperatureSensor::init()
                 drivers[instance] = NEW_NOTHROW AP_TemperatureSensor_MAX31865(*this, _state[instance], _params[instance]);
                 break;
 #endif
+#if AP_TEMPERATURE_SENSOR_SHT3X_ENABLED
+            case AP_TemperatureSensor_Params::Type::SHT3x:
+                drivers[instance] = NEW_NOTHROW AP_TemperatureSensor_SHT3x(*this, _state[instance], _params[instance]);
+                break;
+#endif  // AP_TEMPERATURE_SENSOR_SHT3X_ENABLED
 #if AP_TEMPERATURE_SENSOR_TSYS03_ENABLED
             case AP_TemperatureSensor_Params::Type::TSYS03:
                 drivers[instance] = NEW_NOTHROW AP_TemperatureSensor_TSYS03(*this, _state[instance], _params[instance]);
