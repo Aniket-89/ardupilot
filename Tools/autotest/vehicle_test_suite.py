@@ -69,6 +69,10 @@ class MAV_POS_TARGET_TYPE_MASK(enum.IntEnum):
     YAW_IGNORE = mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE
     YAW_RATE_IGNORE = mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
     POS_ONLY   = VEL_IGNORE | ACC_IGNORE | YAW_IGNORE | YAW_RATE_IGNORE
+    ALT_ONLY   = (VEL_IGNORE | ACC_IGNORE | YAW_IGNORE | YAW_RATE_IGNORE |
+                  mavutil.mavlink.POSITION_TARGET_TYPEMASK_X_IGNORE |
+                  mavutil.mavlink.POSITION_TARGET_TYPEMASK_Y_IGNORE)
+    IGNORE_ALL = VEL_IGNORE | ACC_IGNORE | YAW_IGNORE | YAW_RATE_IGNORE | POS_IGNORE
     LAST_BYTE  = 0xF000
 
 
@@ -473,6 +477,8 @@ class WaitAndMaintain(object):
                  timeout=30,
                  epsilon=None,
                  comparator=None,
+                 fn=None,
+                 fn_interval=None,
                  ):
         self.test_suite = test_suite
         self.minimum_duration = minimum_duration
@@ -482,6 +488,10 @@ class WaitAndMaintain(object):
         self.last_progress_print = 0
         self.progress_print_interval = progress_print_interval
         self.comparator = comparator
+
+        self.fn = fn
+        self.fn_interval = fn_interval
+        self.last_fn_run_time = 0
 
     def run(self):
         self.announce_test_start()
@@ -498,6 +508,12 @@ class WaitAndMaintain(object):
             if now - tstart > self.timeout:
                 self.print_failure_text(now, current_value)
                 raise self.timeoutexception()
+
+            # call supplied function if appropriate:
+            if (self.fn is not None and
+                    now - self.last_fn_run_time > self.fn_interval):
+                self.fn()
+                self.last_fn_run_time = now
 
             # handle the case where we are are achieving our value:
             if self.validate_value(current_value):
@@ -4212,6 +4228,14 @@ class TestSuite(ABC):
             count += 1
 
     def create_simple_relhome_mission(self, items_in, target_system=1, target_component=1):
+        return self.create_simple_relloc_mission(
+            self.home_position_as_mav_location(),
+            items_in,
+            target_system=target_system,
+            target_component=target_component,
+        )
+
+    def create_simple_relloc_mission(self, loc, items_in, target_system=1, target_component=1):
         '''takes a list of (type, n, e, alt) items.  Creates a mission in
         absolute frame using alt as relative-to-home and n and e as
         offsets in metres from home'''
@@ -4236,9 +4260,9 @@ class TestSuite(ABC):
             lat = 0
             lng = 0
             if n != 0 or e != 0:
-                loc = self.home_relative_loc_ne(n, e)
-                lat = loc.lat
-                lng = loc.lng
+                relloc = self.offset_location_ne(loc, n, e)
+                lat = relloc.lat
+                lng = relloc.lng
             frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
             if not self.ardupilot_stores_frame_for_cmd(t):
                 frame = mavutil.mavlink.MAV_FRAME_GLOBAL
@@ -4251,6 +4275,14 @@ class TestSuite(ABC):
 
     def upload_simple_relhome_mission(self, items, target_system=1, target_component=1):
         mission = self.create_simple_relhome_mission(
+            items,
+            target_system=target_system,
+            target_component=target_component)
+        self.check_mission_upload_download(mission)
+
+    def upload_simple_relloc_mission(self, loc, items, target_system=1, target_component=1):
+        mission = self.create_simple_relloc_mission(
+            loc,
             items,
             target_system=target_system,
             target_component=target_component)
@@ -4377,8 +4409,8 @@ class TestSuite(ABC):
                         raise ValueError(f"Expected value {value} not in enum {enum}")
                     if got not in enum:
                         raise ValueError(f"Received value {got} not in enum {enum}")
-                    value_string = "{value} ({enum[value].name})"
-                    got_string = "{got} ({enum[got].name})"
+                    value_string = f"{value} ({enum[value].name})"
+                    got_string = f"{got} ({enum[got].name})"
 
             if not self.message_has_field_values_field_values_equal(
                     fieldname, value, got, epsilon=epsilon
@@ -5687,7 +5719,7 @@ class TestSuite(ABC):
         self.run_cmd(mavutil.mavlink.MAV_CMD_DO_SET_SERVO, p1=chan, p2=pwm)
 
     def location_offset_ne(self, location, north, east):
-        '''move location in metres'''
+        '''move location in metres.  You probably wat offset_location_ne'''
         print("old: %f %f" % (location.lat, location.lng))
         (lat, lng) = mp_util.gps_offset(location.lat, location.lng, east, north)
         location.lat = lat
